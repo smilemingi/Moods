@@ -1,0 +1,317 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Auto Lo-Fi Study Mood</title>
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body, html { width: 100%; height: 100%; overflow: hidden; font-family: 'Helvetica Neue', Arial, sans-serif; background: #111; color: #fff; }
+        
+        #app-container {
+            position: relative;
+            width: 100%;
+            height: 100%;
+            transition: background-image 2s ease-in-out;
+            background-size: cover;
+            background-position: center;
+            background-repeat: no-repeat;
+        }
+
+        #weather-canvas {
+            position: absolute;
+            top: 0; left: 0;
+            width: 100%; height: 100%;
+            pointer-events: none;
+            z-index: 10;
+        }
+
+        #time-overlay {
+            position: absolute;
+            top: 0; left: 0; right: 0; bottom: 0;
+            transition: background-color 3s ease, mix-blend-mode 3s ease;
+            pointer-events: none;
+            z-index: 5;
+        }
+
+        /* 미니멀한 UI 패널 (위치/날씨 자동 감지 상태 표시) */
+        #ui-panel {
+            position: absolute;
+            bottom: 40px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: rgba(20, 20, 25, 0.75);
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            padding: 20px 35px;
+            border-radius: 20px;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            z-index: 20;
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+            min-width: 320px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.4);
+            text-align: center;
+        }
+
+        .control-group {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 15px;
+        }
+        
+        .control-group span {
+            font-size: 13px;
+            font-weight: 500;
+        }
+
+        input[type=range] {
+            -webkit-appearance: none;
+            width: 70%;
+            background: transparent;
+        }
+        input[type=range]:focus { outline: none; }
+        input[type=range]::-webkit-slider-runnable-track {
+            width: 100%; height: 6px;
+            cursor: pointer;
+            background: rgba(255, 255, 255, 0.3);
+            border-radius: 3px;
+        }
+        input[type=range]::-webkit-slider-thumb {
+            height: 14px; width: 14px;
+            border-radius: 50%;
+            background: #fff;
+            cursor: pointer;
+            -webkit-appearance: none;
+            margin-top: -4px;
+            box-shadow: 0 0 8px rgba(255,255,255,0.6);
+        }
+
+        #clock-display { font-size: 24px; font-weight: 300; letter-spacing: 2px; }
+        #status-display { font-size: 12px; color: rgba(255,255,255,0.6); margin-top: 4px; }
+    </style>
+</head>
+<body>
+
+    <div id="app-container">
+        <div id="time-overlay"></div>
+        <canvas id="weather-canvas"></canvas>
+        
+        <div id="ui-panel">
+            <div>
+                <div id="clock-display">00:00</div>
+                <div id="status-display">위치 및 날씨 불러오는 중... (화면을 터치하세요)</div>
+            </div>
+
+            <div class="control-group">
+                <span>🎵 BGM 볼륨</span>
+                <input type="range" id="bgm-volume" min="0" max="100" value="60">
+            </div>
+            <div class="control-group">
+                <span>🌧️ 효과음 볼륨</span>
+                <input type="range" id="sfx-volume" min="0" max="100" value="50">
+            </div>
+        </div>
+    </div>
+
+    <!-- 오디오 소스 -->
+    <audio id="audio-bgm" loop><source src="https://cdn.pixabay.com/audio/2022/05/27/audio_1808fbf07a.mp3" type="audio/mpeg"></audio>
+    <audio id="audio-rain" loop><source src="https://cdn.pixabay.com/audio/2021/08/09/audio_6b9788a449.mp3" type="audio/mpeg"></audio>
+    <audio id="audio-snow" loop><source src="https://cdn.pixabay.com/audio/2022/03/15/audio_29fb665d91.mp3" type="audio/mpeg"></audio>
+
+    <script>
+        const appContainer = document.getElementById('app-container');
+        const timeOverlay = document.getElementById('time-overlay');
+        const clockDisplay = document.getElementById('clock-display');
+        const statusDisplay = document.getElementById('status-display');
+
+        const bgImages = {
+            dawn: 'https://images.unsplash.com/photo-1542281286-9e0a16bb7366?w=1600&q=80',
+            morning: 'https://images.unsplash.com/photo-1494548162494-384bba4ab999?w=1600&q=80',
+            afternoon: 'https://images.unsplash.com/photo-1506744038136-46273834b3fb?w=1600&q=80',
+            evening: 'https://images.unsplash.com/photo-1472552944129-b035e9ea3744?w=1600&q=80',
+            night: 'https://images.unsplash.com/photo-1534447677768-be436bb09401?w=1600&q=80'
+        };
+
+        // 시간대 설정
+        function updateTimeTheme() {
+            const now = new Date();
+            const hours = now.getHours();
+            const minutes = now.getMinutes().toString().padStart(2, '0');
+            clockDisplay.textContent = `${hours.toString().padStart(2, '0')}:${minutes}`;
+
+            let period = 'afternoon';
+            let overlay = { bg: 'transparent', blend: 'normal' };
+
+            if (hours >= 5 && hours < 8) {
+                period = 'dawn';
+                overlay = { bg: 'rgba(50, 80, 150, 0.3)', blend: 'multiply' };
+            } else if (hours >= 8 && hours < 12) {
+                period = 'morning';
+                overlay = { bg: 'rgba(255, 255, 230, 0.1)', blend: 'overlay' };
+            } else if (hours >= 12 && hours < 17) {
+                period = 'afternoon';
+            } else if (hours >= 17 && hours < 20) {
+                period = 'evening';
+                overlay = { bg: 'rgba(250, 120, 50, 0.25)', blend: 'color-burn' };
+            } else {
+                period = 'night';
+                overlay = { bg: 'rgba(10, 15, 40, 0.6)', blend: 'multiply' };
+            }
+
+            appContainer.style.backgroundImage = `url('${bgImages[period]}')`;
+            timeOverlay.style.backgroundColor = overlay.bg;
+            timeOverlay.style.mixBlendMode = overlay.blend;
+        }
+        updateTimeTheme();
+        setInterval(updateTimeTheme, 60000);
+
+        // 오디오 요소
+        const bgmAudio = document.getElementById('audio-bgm');
+        const rainAudio = document.getElementById('audio-rain');
+        const snowAudio = document.getElementById('audio-snow');
+        const bgmSlider = document.getElementById('bgm-volume');
+        const sfxSlider = document.getElementById('sfx-volume');
+
+        let isStarted = false;
+
+        // 위치 정보 기반 날씨 자동 파악 (Open-Meteo 무료 API 활용 - 키 불필요)
+        function fetchAutoWeather() {
+            if ("geolocation" in navigator) {
+                navigator.geolocation.getCurrentPosition(async (position) => {
+                    const lat = position.coords.latitude;
+                    const lon = position.coords.longitude;
+                    try {
+                        const res = await fetch(`https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&current_weather=true`);
+                        const data = await res.json();
+                        const weatherCode = data.current_weather.weathercode;
+                        
+                        // WMO Weather interpretation codes (0: Clear, 1,2,3: Cloudy, 51-67: Rain, 71-77: Snow)
+                        if ([51, 53, 55, 61, 63, 65, 80, 81, 82].includes(weatherCode)) {
+                            activateWeather('rain', '현재 위치: 비 오는 중 🌧️');
+                        } else if ([71, 73, 75, 77, 85, 86].includes(weatherCode)) {
+                            activateWeather('snow', '현재 위치: 눈 내리는 중 ❄️');
+                        } else {
+                            activateWeather('clear', '현재 위치: 맑음 / 구름 ☀️');
+                        }
+                    } catch (e) {
+                        statusDisplay.textContent = "날씨 정보를 불러오지 못했습니다. (기본 맑음)";
+                        activateWeather('clear', '현재 위치: 맑음 ☀️');
+                    }
+                }, (error) => {
+                    statusDisplay.textContent = "위치 권한이 거부되었습니다. (기본 맑음)";
+                    activateWeather('clear', '현재 위치: 맑음 ☀️');
+                });
+            } else {
+                activateWeather('clear', '위치 정보를 지원하지 않는 브라우저입니다.');
+            }
+        }
+
+        let currentWeather = 'clear';
+        function activateWeather(type, msg) {
+            currentWeather = type;
+            statusDisplay.textContent = msg;
+            if (type === 'rain') {
+                createParticles('rain', 200);
+                snowAudio.pause();
+                rainAudio.volume = sfxSlider.value / 100;
+                rainAudio.play().catch(e => {});
+            } else if (type === 'snow') {
+                createParticles('snow', 150);
+                rainAudio.pause();
+                snowAudio.volume = sfxSlider.value / 100;
+                snowAudio.play().catch(e => {});
+            } else {
+                particles = [];
+                rainAudio.pause();
+                snowAudio.pause();
+            }
+        }
+
+        // 첫 터치/클릭 시 오디오 재생 시작 + 위치 권한 요청 트리거
+        function startExperience() {
+            if (!isStarted) {
+                isStarted = true;
+                bgmAudio.volume = bgmSlider.value / 100;
+                bgmAudio.play().catch(e => console.log("Audio play error:", e));
+                fetchAutoWeather(); // 터치하는 순간 위치 권한 허용 팝업 요청 및 날씨 감지
+            }
+        }
+
+        document.body.addEventListener('click', startExperience, { once: true });
+        document.body.addEventListener('touchstart', startExperience, { once: true });
+
+        bgmSlider.addEventListener('input', (e) => { bgmAudio.volume = e.target.value / 100; });
+        sfxSlider.addEventListener('input', (e) => {
+            const vol = e.target.value / 100;
+            rainAudio.volume = vol;
+            snowAudio.volume = vol;
+        });
+
+        // Canvas 애니메이션
+        const canvas = document.getElementById('weather-canvas');
+        const ctx = canvas.getContext('2d');
+        let particles = [];
+
+        function resizeCanvas() { canvas.width = window.innerWidth; canvas.height = window.innerHeight; }
+        window.addEventListener('resize', resizeCanvas);
+        resizeCanvas();
+
+        class Particle {
+            constructor(type) { this.type = type; this.reset(); }
+            reset() {
+                this.x = Math.random() * canvas.width;
+                this.y = Math.random() * -canvas.height;
+                if (this.type === 'rain') {
+                    this.speed = Math.random() * 15 + 10;
+                    this.width = Math.random() * 1.5 + 0.5;
+                    this.height = Math.random() * 20 + 10;
+                } else {
+                    this.speed = Math.random() * 2 + 1;
+                    this.radius = Math.random() * 3 + 1;
+                    this.angle = Math.random() * Math.PI * 2;
+                    this.wobble = Math.random() * 0.05;
+                }
+            }
+            update() {
+                if (this.type === 'rain') {
+                    this.y += this.speed;
+                } else {
+                    this.y += this.speed;
+                    this.angle += this.wobble;
+                    this.x += Math.sin(this.angle) * 1.5;
+                }
+                if (this.y > canvas.height) this.reset();
+            }
+            draw() {
+                ctx.beginPath();
+                if (this.type === 'rain') {
+                    ctx.strokeStyle = 'rgba(200, 220, 255, 0.6)';
+                    ctx.lineWidth = this.width;
+                    ctx.moveTo(this.x, this.y);
+                    ctx.lineTo(this.x, this.y + this.height);
+                    ctx.stroke();
+                } else {
+                    ctx.fillStyle = 'rgba(255, 255, 255, 0.8)';
+                    ctx.arc(this.x, this.y, this.radius, 0, Math.PI * 2);
+                    ctx.fill();
+                }
+            }
+        }
+
+        function createParticles(type, count) {
+            particles = [];
+            for (let i = 0; i < count; i++) particles.push(new Particle(type));
+        }
+
+        function animateWeather() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            particles.forEach(p => { p.update(); p.draw(); });
+            requestAnimationFrame(animateWeather);
+        }
+        animateWeather();
+    </script>
+</body>
+</html>
