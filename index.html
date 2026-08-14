@@ -1,0 +1,1082 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>創窓日記 · 소소한 창가 다이어리</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Gaegu:wght@400;700&family=Gowun+Dodum&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --walnut-dark:#221510;
+    --walnut:#3a2417;
+    --oak:#7a4b32;
+    --oak-light:#9c6a45;
+    --brass:#cf9a52;
+    --brass-light:#e6bd7e;
+    --paper:#f2e6c9;
+    --paper-deep:#e7d6ab;
+    --ink:#2b1a10;
+    --ink-soft:#6b543c;
+    --mtn-color:#6f93ab;
+    --city-color:#3a4a63;
+    --radius:14px;
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;height:100%;overflow:hidden;font-family:'Gowun Dodum',sans-serif;}
+  body{background:#000;}
+  button{font-family:inherit;}
+  input,textarea,select{font-family:inherit;}
+
+  #app{
+    position:relative; width:100vw; height:100vh; height:100dvh;
+    overflow:hidden; isolation:isolate;
+  }
+
+  /* ================= SCENE ================= */
+  .scene{ position:absolute; inset:0; z-index:1; transition:filter 2.2s ease; }
+  .sky-layer{ position:absolute; inset:0; opacity:0; transition:opacity 2.6s ease; }
+  #skyA{ opacity:1; }
+
+  .stars{ position:absolute; inset:0 0 30% 0; }
+  .star{ position:absolute; width:2px; height:2px; border-radius:50%; background:#fff; animation:twinkle 3s ease-in-out infinite; opacity:.85; }
+  @keyframes twinkle{0%,100%{opacity:.15;}50%{opacity:1;}}
+
+  .celestial{ position:absolute; width:64px; height:64px; margin:-32px; border-radius:50%; transition:left 2s linear, top 2s linear, background 2s ease, box-shadow 2s ease; }
+
+  .clouds{ position:absolute; inset:0; overflow:hidden; }
+  .cloud{ position:absolute; border-radius:50%; }
+  @keyframes floatCloud{ from{transform:translateX(0);} to{transform:translateX(140vw);} }
+
+  .mountains{
+    position:absolute; left:-2%; right:-2%; bottom:16%; height:24%;
+    background:var(--mtn-color);
+    clip-path:polygon(0% 100%,0% 62%,7% 42%,17% 66%,27% 30%,39% 58%,51% 18%,63% 54%,75% 34%,87% 60%,100% 44%,100% 100%);
+    opacity:.8; transition:background-color 2.4s ease;
+  }
+  .city{ position:absolute; left:0; right:0; bottom:14%; height:20%; transition:background-color 2.4s ease; }
+  .building{ position:absolute; bottom:0; background:var(--city-color); transition:background-color 2.4s ease; }
+  .winlight{ position:absolute; width:5%; height:12%; background:#ffcf7c; opacity:0; box-shadow:0 0 6px 1px rgba(255,207,124,.7); transition:opacity 1.6s ease; }
+  #app[data-period="evening"] .winlight,
+  #app[data-period="night"] .winlight,
+  #app[data-period="dawn"] .winlight{ opacity:var(--lit,0); }
+
+  .fireflies{ position:absolute; inset:0; opacity:0; transition:opacity 2s ease; pointer-events:none; }
+  #app[data-period="evening"] .fireflies, #app[data-period="night"] .fireflies{ opacity:1; }
+  #app[data-weather="Rain"] .fireflies, #app[data-weather="Thunderstorm"] .fireflies, #app[data-weather="Snow"] .fireflies{ opacity:0 !important; }
+  .firefly{ position:absolute; width:4px; height:4px; border-radius:50%; background:#fff2a8; box-shadow:0 0 8px 3px rgba(255,242,168,.8); animation-name:fireflyFloat; animation-timing-function:ease-in-out; animation-iteration-count:infinite; opacity:0; }
+  @keyframes fireflyFloat{0%{transform:translate(0,0);opacity:0;}20%{opacity:.9;}50%{transform:translate(30px,-22px);opacity:.5;}80%{opacity:.9;}100%{transform:translate(-16px,10px);opacity:0;}}
+
+  #weatherCanvas{ position:absolute; inset:0; width:100%; height:100%; }
+
+  .weather-overlay{ position:absolute; inset:0; transition:background 2.2s ease; pointer-events:none; }
+  .flash-layer{ position:absolute; inset:0; background:#fff; opacity:0; pointer-events:none; }
+  .flash-layer.on{ opacity:.75; transition:opacity .06s ease-out; }
+
+  .wetglass{
+    position:absolute; inset:0; opacity:0; mix-blend-mode:screen; pointer-events:none;
+    background-image:repeating-linear-gradient(96deg, rgba(255,255,255,.06) 0px, rgba(255,255,255,.06) 1px, transparent 1px, transparent 46px);
+    animation:glassDrip 5s linear infinite; transition:opacity 1.4s ease;
+  }
+  @keyframes glassDrip{ from{background-position:0 0;} to{background-position:0 360px;} }
+  #app[data-weather="Rain"] .wetglass, #app[data-weather="Thunderstorm"] .wetglass{ opacity:.55; }
+
+  /* ================= WINDOW FRAME ================= */
+  .window{ position:absolute; inset:0; z-index:10; pointer-events:none; }
+  .frame-outer{
+    position:absolute; inset:2.4vw;
+    border:clamp(16px,3vw,32px) solid var(--walnut);
+    border-image:linear-gradient(135deg,var(--oak-light),var(--walnut-dark) 45%,var(--oak) 65%,var(--walnut-dark)) 1;
+    box-shadow:0 0 0 5px rgba(0,0,0,.3) inset, 0 25px 70px rgba(0,0,0,.55);
+    border-radius:6px;
+  }
+  .mullion{ position:absolute; background:linear-gradient(var(--dir,90deg),var(--walnut-dark),var(--oak-light),var(--walnut-dark)); box-shadow:0 0 14px rgba(0,0,0,.4); }
+  .mullion-v{ left:50%; top:2.4vw; bottom:2.4vw; width:clamp(12px,1.8vw,20px); margin-left:-9px; --dir:90deg; }
+  .mullion-h{ top:50%; left:2.4vw; right:2.4vw; height:clamp(12px,1.8vw,20px); margin-top:-9px; --dir:180deg; }
+  .corner{ position:absolute; width:14px; height:14px; border-radius:50%; background:radial-gradient(circle at 35% 35%,var(--brass-light),var(--brass) 60%,#7a5525); box-shadow:0 1px 3px rgba(0,0,0,.5); }
+  .corner.tl{ top:2.8vw; left:2.8vw; } .corner.tr{ top:2.8vw; right:2.8vw; }
+  .corner.bl{ bottom:2.8vw; left:2.8vw; } .corner.br{ bottom:2.8vw; right:2.8vw; }
+
+  /* ================= DESK FOREGROUND ================= */
+  .desk{ position:absolute; left:0; right:0; bottom:0; height:17vh; min-height:110px; z-index:11; pointer-events:none; filter:drop-shadow(0 -6px 18px rgba(0,0,0,.35)); }
+  .desk svg{ width:100%; height:100%; display:block; }
+  .lamp-glow{ opacity:0; transition:opacity 2.2s ease; animation:flicker 4.2s ease-in-out infinite; }
+  #app[data-period="evening"] .lamp-glow, #app[data-period="night"] .lamp-glow, #app[data-period="dawn"] .lamp-glow{ opacity:.9; }
+  @keyframes flicker{0%,100%{opacity:.85;}45%{opacity:1;}55%{opacity:.92;}}
+  .steam{ transform-origin:bottom center; animation:steamRise 3.4s ease-in-out infinite; opacity:0; }
+  .steam.s2{ animation-delay:1.2s; }
+  @keyframes steamRise{0%{transform:translateY(8px) scaleY(.7);opacity:0;}30%{opacity:.55;}100%{transform:translateY(-20px) scaleY(1.15);opacity:0;}}
+
+  /* ================= UI SHARED ================= */
+  .glass-panel{
+    background:linear-gradient(165deg, rgba(242,230,201,.92), rgba(231,214,171,.92));
+    border:1px solid rgba(255,255,255,.35);
+    border-radius:var(--radius);
+    box-shadow:0 10px 30px rgba(0,0,0,.35), inset 0 1px 0 rgba(255,255,255,.5);
+    color:var(--ink);
+  }
+  .icon-btn{
+    width:38px; height:38px; border-radius:50%; border:1px solid rgba(255,255,255,.4);
+    background:linear-gradient(165deg,var(--brass-light),var(--brass));
+    color:var(--ink); font-size:16px; cursor:pointer; display:flex; align-items:center; justify-content:center;
+    box-shadow:0 4px 10px rgba(0,0,0,.35);
+  }
+  .icon-btn:hover{ filter:brightness(1.08); }
+  .icon-btn:focus-visible, button:focus-visible, input:focus-visible, textarea:focus-visible{ outline:3px solid var(--brass-light); outline-offset:2px; }
+
+  /* ================= INFO CARD ================= */
+  .info-card{
+    position:absolute; top:calc(2.4vw + 14px); left:calc(2.4vw + 20px);
+    z-index:25; padding:14px 18px; display:flex; align-items:center; gap:14px;
+    max-width:min(86vw, 480px);
+  }
+  .info-text{ display:flex; flex-direction:column; line-height:1.25; }
+  .clock{ font-family:'Gaegu',cursive; font-size:clamp(22px,4vw,30px); font-weight:700; }
+  .date{ font-size:12px; color:var(--ink-soft); }
+  .period{ font-size:12px; color:var(--ink-soft); }
+  .divider{ width:1px; align-self:stretch; background:rgba(43,26,16,.2); }
+  .weather-chip{ font-size:14px; display:flex; flex-direction:column; gap:2px; white-space:nowrap; }
+  .weather-chip small{ color:var(--ink-soft); font-size:11px; }
+
+  /* ================= SETTINGS POPOVER ================= */
+  .settings-pop{
+    position:absolute; top:calc(2.4vw + 68px); left:calc(2.4vw + 20px); z-index:26;
+    width:min(88vw,300px); padding:16px; display:none; flex-direction:column; gap:8px;
+  }
+  .settings-pop.open{ display:flex; }
+  .settings-pop h3{ margin:0 0 2px 0; font-size:15px; }
+  .settings-pop h3 span{ font-size:11px; color:var(--ink-soft); font-weight:400; }
+  .settings-pop label{ font-size:12px; color:var(--ink-soft); margin-top:4px; }
+  .settings-pop input{ padding:8px 10px; border-radius:8px; border:1px solid rgba(43,26,16,.25); background:rgba(255,255,255,.55); color:var(--ink); font-size:13px; }
+  .settings-pop .row{ display:flex; gap:6px; }
+  .settings-pop .row input{ flex:1; min-width:0; }
+  .btn-small{ padding:8px 10px; border-radius:8px; border:none; background:var(--ink); color:var(--paper); font-size:12px; cursor:pointer; }
+  .btn-small:hover{ filter:brightness(1.15); }
+  .ghost-btn{ padding:8px 10px; border-radius:8px; border:1px dashed var(--ink-soft); background:transparent; color:var(--ink); font-size:12px; cursor:pointer; }
+  .hint{ font-size:11px; color:var(--ink-soft); line-height:1.5; margin:2px 0 0; }
+  .chip-row{ display:flex; flex-wrap:wrap; gap:6px; }
+  .chip-row button{ padding:6px 10px; border-radius:20px; border:1px solid rgba(43,26,16,.25); background:rgba(255,255,255,.5); color:var(--ink); font-size:12px; cursor:pointer; }
+  .chip-row button.active{ background:var(--ink); color:var(--paper); }
+  .chip-row span.label{ width:100%; font-size:11px; color:var(--ink-soft); margin-top:2px; }
+
+  /* ================= TAB BUTTONS ================= */
+  .tab-btn{
+    position:absolute; z-index:25; writing-mode:vertical-rl; text-orientation:mixed;
+    padding:14px 8px; border:none; cursor:pointer; font-size:13px; letter-spacing:1px;
+    background:linear-gradient(180deg,var(--oak-light),var(--walnut));
+    color:var(--paper); border-radius:10px 0 0 10px; box-shadow:-4px 6px 16px rgba(0,0,0,.35);
+    display:flex; align-items:center; gap:6px;
+  }
+  .tab-btn:hover{ filter:brightness(1.08); }
+  .guestbook-btn{ top:38%; right:0; }
+  .mixer-btn{ bottom:6vh; right:0; border-radius:10px 0 0 10px; }
+
+  /* ================= GUESTBOOK PANEL ================= */
+  .guestbook-panel{
+    position:absolute; top:0; right:0; height:100%; width:min(92vw,340px);
+    z-index:27; transform:translateX(105%); transition:transform .45s cubic-bezier(.2,.9,.2,1);
+    display:flex; flex-direction:column; padding:22px 18px; gap:10px; border-radius:0;
+    background:linear-gradient(165deg, rgba(242,230,201,.97), rgba(231,214,171,.97));
+    overflow-y:auto;
+  }
+  .guestbook-panel.open{ transform:translateX(0); }
+  .guestbook-panel h3{ font-family:'Gaegu',cursive; font-size:22px; margin:0 0 6px; }
+  .guestbook-panel input, .guestbook-panel textarea{
+    padding:10px 12px; border-radius:8px; border:1px solid rgba(43,26,16,.25);
+    background:rgba(255,255,255,.55); color:var(--ink); font-size:13px; resize:vertical;
+  }
+  .gb-list{ display:flex; flex-direction:column; gap:10px; margin-top:6px; }
+  .gb-entry{ background:rgba(255,255,255,.45); border-radius:8px; padding:10px 12px; position:relative; box-shadow:0 2px 6px rgba(0,0,0,.1); }
+  .gb-head{ display:flex; justify-content:space-between; align-items:center; font-size:11px; color:var(--ink-soft); margin-bottom:4px; }
+  .gb-name{ font-weight:700; color:var(--ink); }
+  .gb-del{ border:none; background:transparent; color:var(--ink-soft); font-size:15px; cursor:pointer; line-height:1; }
+  .gb-entry p{ margin:0; font-size:13px; line-height:1.5; word-break:break-word; }
+  .gb-empty{ font-size:12px; color:var(--ink-soft); text-align:center; padding:16px 0; }
+
+  /* ================= MIXER DOCK ================= */
+  .mixer-dock{
+    position:absolute; left:50%; bottom:0; transform:translate(-50%,105%); transition:transform .45s cubic-bezier(.2,.9,.2,1);
+    z-index:27; width:min(94vw,560px); padding:16px 18px 18px; display:flex; flex-direction:column; gap:10px;
+    border-radius:16px 16px 0 0;
+    background:linear-gradient(165deg, rgba(242,230,201,.97), rgba(231,214,171,.97));
+  }
+  .mixer-dock.open{ transform:translate(-50%,0); }
+  .mixer-title{ font-family:'Gaegu',cursive; font-size:18px; display:flex; justify-content:space-between; align-items:center; }
+  .mixer-row{ display:grid; grid-template-columns:120px 1fr 34px; align-items:center; gap:10px; font-size:13px; }
+  .mixer-row span.val{ font-size:11px; color:var(--ink-soft); text-align:right; }
+  input[type="range"]{ -webkit-appearance:none; appearance:none; width:100%; height:6px; border-radius:4px; background:rgba(43,26,16,.2); outline:none; }
+  input[type="range"]::-webkit-slider-thumb{ -webkit-appearance:none; width:16px; height:16px; border-radius:50%; background:var(--brass); border:2px solid var(--paper); cursor:pointer; box-shadow:0 2px 4px rgba(0,0,0,.4); }
+  input[type="range"]::-moz-range-thumb{ width:14px; height:14px; border-radius:50%; background:var(--brass); border:2px solid var(--paper); cursor:pointer; }
+  .master-row{ display:flex; justify-content:center; margin-top:4px; }
+  .master-btn{ padding:9px 20px; border-radius:20px; border:none; background:var(--ink); color:var(--paper); font-size:13px; cursor:pointer; }
+  .master-btn:hover{ filter:brightness(1.15); }
+
+  /* ================= CURTAIN ================= */
+  .curtain{ position:absolute; inset:0; z-index:100; display:flex; align-items:center; justify-content:center; }
+  .curtain-panel{ position:absolute; top:0; bottom:0; width:52%; background:linear-gradient(120deg,#3a1f14,#1c0f0a 60%); transition:transform 1.1s cubic-bezier(.65,0,.2,1); box-shadow:0 0 60px rgba(0,0,0,.6) inset; }
+  .curtain-panel.left{ left:0; background-image:repeating-linear-gradient(90deg, rgba(0,0,0,.15) 0 10px, rgba(255,255,255,.03) 10px 20px); }
+  .curtain-panel.right{ right:0; background-image:repeating-linear-gradient(90deg, rgba(0,0,0,.15) 0 10px, rgba(255,255,255,.03) 10px 20px); }
+  .curtain-content{ position:relative; z-index:2; text-align:center; color:var(--paper); padding:0 24px; }
+  .curtain-content h1{ font-family:'Gaegu',cursive; font-size:clamp(30px,7vw,46px); margin:0 0 10px; letter-spacing:2px; text-shadow:0 4px 20px rgba(0,0,0,.5); }
+  .curtain-content p{ font-size:14px; line-height:1.7; color:#e9dcc4; margin:0 0 22px; }
+  .open-btn{ padding:13px 30px; border-radius:26px; border:1px solid var(--brass-light); background:linear-gradient(165deg,var(--brass-light),var(--brass)); color:var(--walnut-dark); font-size:15px; font-weight:700; cursor:pointer; box-shadow:0 8px 24px rgba(0,0,0,.4); }
+  .open-btn:hover{ filter:brightness(1.08); transform:translateY(-1px); }
+  .curtain.opened .curtain-panel.left{ transform:translateX(-105%); }
+  .curtain.opened .curtain-panel.right{ transform:translateX(105%); }
+  .curtain.opened .curtain-content{ opacity:0; transition:opacity .5s ease; pointer-events:none; }
+  .curtain.hidden{ display:none; }
+
+  /* ================= MISC / RESPONSIVE ================= */
+  @media (max-width:640px){
+    .info-card{ padding:10px 14px; gap:10px; top:calc(2.4vw + 10px); left:calc(2.4vw + 10px); }
+    .clock{ font-size:20px; }
+    .settings-pop{ left:calc(2.4vw + 10px); top:calc(2.4vw + 60px); width:min(90vw,280px); }
+    .mixer-row{ grid-template-columns:96px 1fr 30px; font-size:12px; }
+    .tab-btn{ padding:10px 6px; font-size:11px; }
+  }
+  @media (prefers-reduced-motion: reduce){
+    .cloud, .firefly, .star, .lamp-glow, .steam, .wetglass{ animation:none !important; }
+    .curtain-panel, .curtain-content{ transition:none !important; }
+  }
+</style>
+</head>
+<body>
+<div id="app" data-period="afternoon" data-weather="Clear">
+
+  <div class="scene">
+    <div class="sky-layer" id="skyA"></div>
+    <div class="sky-layer" id="skyB"></div>
+    <div class="stars" id="stars"></div>
+    <div class="celestial" id="celestial"></div>
+    <div class="clouds" id="clouds"></div>
+    <div class="mountains"></div>
+    <div class="city" id="city"></div>
+    <div class="fireflies" id="fireflies"></div>
+    <canvas id="weatherCanvas"></canvas>
+    <div class="weather-overlay" id="weatherOverlay"></div>
+    <div class="flash-layer" id="flashLayer"></div>
+    <div class="wetglass"></div>
+  </div>
+
+  <div class="window">
+    <div class="frame-outer"></div>
+    <div class="mullion mullion-v"></div>
+    <div class="mullion mullion-h"></div>
+    <div class="corner tl"></div><div class="corner tr"></div>
+    <div class="corner bl"></div><div class="corner br"></div>
+  </div>
+
+  <div class="desk">
+    <svg viewBox="0 0 1200 200" preserveAspectRatio="none">
+      <defs>
+        <linearGradient id="deskGrad" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%" stop-color="#6b4226"/>
+          <stop offset="100%" stop-color="#1c1108"/>
+        </linearGradient>
+        <radialGradient id="lampGlowGrad" cx="50%" cy="50%" r="50%">
+          <stop offset="0%" stop-color="rgba(255,214,140,0.85)"/>
+          <stop offset="60%" stop-color="rgba(255,180,90,0.25)"/>
+          <stop offset="100%" stop-color="rgba(255,180,90,0)"/>
+        </radialGradient>
+      </defs>
+      <rect x="0" y="150" width="1200" height="50" fill="url(#deskGrad)"/>
+      <rect x="0" y="148" width="1200" height="3" fill="#9c6a45" opacity=".6"/>
+
+      <g class="lamp" transform="translate(40,0)">
+        <ellipse class="lamp-glow" cx="134" cy="88" rx="95" ry="75" fill="url(#lampGlowGrad)"/>
+        <rect x="130" y="128" width="8" height="37" fill="#180f08"/>
+        <rect x="88" y="122" width="92" height="8" rx="4" fill="#180f08"/>
+        <path d="M100 55 L168 55 L182 122 L86 122 Z" fill="#180f08"/>
+      </g>
+
+      <g transform="translate(500,0)">
+        <rect x="-42" y="150" width="92" height="15" rx="3" fill="#180f08" transform="rotate(-2 4 157)"/>
+        <rect x="-36" y="135" width="80" height="15" rx="3" fill="#180f08" transform="rotate(2 4 142)"/>
+        <rect x="-30" y="120" width="60" height="16" rx="3" fill="#180f08" transform="rotate(-1 0 128)"/>
+      </g>
+
+      <g transform="translate(700,0)">
+        <path class="steam s1" d="M-6 118 Q-16 100 -6 84 Q3 68 -5 52" fill="none" stroke="rgba(255,255,255,.4)" stroke-width="3" stroke-linecap="round"/>
+        <path class="steam s2" d="M4 118 Q13 98 4 82 Q-5 66 5 50" fill="none" stroke="rgba(255,255,255,.3)" stroke-width="3" stroke-linecap="round"/>
+        <path d="M-22 165 L22 165 L17 133 Q0 125 -17 133 Z" fill="#180f08"/>
+        <path d="M19 138 Q36 138 36 151 Q36 162 19 160" fill="none" stroke="#180f08" stroke-width="5"/>
+      </g>
+
+      <g transform="translate(980,0)">
+        <path d="M-32 165 L32 165 L24 128 L-24 128 Z" fill="#180f08"/>
+        <ellipse cx="0" cy="118" rx="15" ry="32" transform="rotate(-25 0 118)" fill="#180f08"/>
+        <ellipse cx="0" cy="112" rx="15" ry="36" transform="rotate(6 0 112)" fill="#180f08"/>
+        <ellipse cx="0" cy="118" rx="15" ry="32" transform="rotate(32 0 118)" fill="#180f08"/>
+        <ellipse cx="0" cy="126" rx="12" ry="27" transform="rotate(-58 0 126)" fill="#180f08"/>
+        <ellipse cx="0" cy="126" rx="12" ry="27" transform="rotate(58 0 126)" fill="#180f08"/>
+      </g>
+    </svg>
+  </div>
+
+  <header class="info-card glass-panel">
+    <button class="icon-btn" id="settingsBtn" title="날씨 설정">⚙</button>
+    <div class="info-text">
+      <div class="clock" id="clock">--:--</div>
+      <div class="date" id="dateLabel">-</div>
+      <div class="period" id="periodLabel">-</div>
+    </div>
+    <div class="divider"></div>
+    <div class="weather-chip" id="weatherChip">🌤<br><small>날씨 정보 없음</small></div>
+  </header>
+
+  <div class="settings-pop glass-panel" id="settingsPop">
+    <h3>실시간 날씨 연동 <span>(선택)</span></h3>
+    <label>OpenWeatherMap API Key</label>
+    <input id="apiKeyInput" placeholder="API 키를 붙여넣으세요" autocomplete="off">
+    <label>도시</label>
+    <div class="row">
+      <input id="cityInput" placeholder="예: Seoul, Tokyo">
+      <button class="btn-small" id="citySearchBtn">검색</button>
+    </div>
+    <button class="ghost-btn" id="geoBtn">📍 내 위치 날씨로 보기</button>
+    <p class="hint">API 키가 없어도 괜찮아요 — 아래 버튼으로 원하는 날씨 분위기를 바로 즐길 수 있어요.</p>
+    <div class="chip-row" id="quickWeather">
+      <span class="label">빠른 날씨</span>
+      <button data-w="Clear">맑음</button>
+      <button data-w="Clouds">흐림</button>
+      <button data-w="Rain">비</button>
+      <button data-w="Snow">눈</button>
+      <button data-w="Thunderstorm">뇌우</button>
+    </div>
+    <div class="chip-row" id="quickPeriod">
+      <span class="label">시간대 미리보기</span>
+      <button data-p="dawn">새벽</button>
+      <button data-p="morning">아침</button>
+      <button data-p="afternoon">낮</button>
+      <button data-p="evening">저녁</button>
+      <button data-p="night">밤</button>
+      <button data-p="auto">자동</button>
+    </div>
+  </div>
+
+  <button class="tab-btn guestbook-btn" id="guestbookBtn">📖 방명록</button>
+  <aside class="guestbook-panel" id="guestbookPanel">
+    <h3>방명록</h3>
+    <input id="gbName" placeholder="이름 (선택, 익명 가능)" maxlength="14">
+    <textarea id="gbMsg" placeholder="오늘의 한 줄을 남겨보세요..." maxlength="220" rows="3"></textarea>
+    <button class="btn-small" id="gbSubmit" style="align-self:flex-end;">✎ 붙여두기</button>
+    <div class="gb-list" id="gbList"></div>
+  </aside>
+
+  <button class="tab-btn mixer-btn" id="mixerBtn">🎚 사운드 믹서</button>
+  <footer class="mixer-dock" id="mixerDock">
+    <div class="mixer-title">
+      <span>나만의 집중 믹스</span>
+      <div class="master-row" style="margin:0;"><button class="master-btn" id="masterToggle">일시정지</button></div>
+    </div>
+    <div class="mixer-row" data-src="lofi"><span>🎵 로파이 비트</span><input type="range" min="0" max="100" value="55"><span class="val">55</span></div>
+    <div class="mixer-row" data-src="rain"><span>🌧 빗소리</span><input type="range" min="0" max="100" value="35"><span class="val">35</span></div>
+    <div class="mixer-row" data-src="cafe"><span>☕ 카페 소음</span><input type="range" min="0" max="100" value="0"><span class="val">0</span></div>
+    <div class="mixer-row" data-src="fire"><span>🔥 모닥불</span><input type="range" min="0" max="100" value="0"><span class="val">0</span></div>
+    <div class="mixer-row" data-src="type"><span>⌨ 타자기</span><input type="range" min="0" max="100" value="0"><span class="val">0</span></div>
+  </footer>
+
+  <div class="curtain" id="curtain">
+    <div class="curtain-panel left"></div>
+    <div class="curtain-panel right"></div>
+    <div class="curtain-content">
+      <h1>創窓日記</h1>
+      <p>날씨와 시간에 따라 풍경이 바뀌는<br>나만의 감성 공부창</p>
+      <button class="open-btn" id="openBtn">🪟 창문 열기</button>
+    </div>
+  </div>
+
+</div>
+
+<script>
+(function(){
+  "use strict";
+
+  /* ============ TIME / PERIOD ============ */
+  const periodNames = {dawn:'새벽',morning:'아침',afternoon:'낮',evening:'저녁',night:'밤'};
+  function getPeriod(hourFrac){
+    if(hourFrac>=4 && hourFrac<7) return 'dawn';
+    if(hourFrac>=7 && hourFrac<11) return 'morning';
+    if(hourFrac>=11 && hourFrac<17) return 'afternoon';
+    if(hourFrac>=17 && hourFrac<20) return 'evening';
+    return 'night';
+  }
+  let manualPeriod = 'auto';
+  let currentWeather = 'Clear';
+  let currentTemp = null;
+  let currentCityName = null;
+
+  const weatherIcon = {
+    Clear:'☀️', Clouds:'☁️', Rain:'🌧️', Drizzle:'🌦️', Thunderstorm:'⛈️',
+    Snow:'❄️', Mist:'🌫️', Haze:'🌫️', Fog:'🌫️', Smoke:'🌫️'
+  };
+  const weatherLabel = {
+    Clear:'맑음', Clouds:'흐림', Rain:'비', Drizzle:'이슬비', Thunderstorm:'뇌우',
+    Snow:'눈', Mist:'안개', Haze:'실안개', Fog:'짙은 안개', Smoke:'연무'
+  };
+
+  const periodColors = {
+    dawn:      {mtn:'#55406a', city:'#241f3a'},
+    morning:   {mtn:'#6f93ab', city:'#3a4a63'},
+    afternoon: {mtn:'#6fa0c2', city:'#44536b'},
+    evening:   {mtn:'#6b3550', city:'#2a1830'},
+    night:     {mtn:'#131a34', city:'#0a0a14'}
+  };
+
+  const skyGradients = {
+    dawn:      'linear-gradient(180deg,#1b1235 0%,#4a2c55 22%,#8a4f6e 42%,#d98a7c 62%,#f3bf8a 82%,#fbe3b0 100%)',
+    morning:   'linear-gradient(180deg,#4f8fc0 0%,#8dc1dd 30%,#cfe9ee 55%,#f3f1d8 80%,#fbead0 100%)',
+    afternoon: 'linear-gradient(180deg,#2f7fc1 0%,#5da2d8 30%,#9cd0ea 55%,#d9f0f7 80%,#f3fbff 100%)',
+    evening:   'linear-gradient(180deg,#241041 0%,#55215a 20%,#9c3564 40%,#e05a4e 58%,#f28c3e 74%,#ffcf7c 88%,#ffe9b0 100%)',
+    night:     'linear-gradient(180deg,#04050f 0%,#0a1030 25%,#131c46 50%,#1c2a5c 75%,#23305e 100%)'
+  };
+  const weatherOverlayColor = {
+    Clear:'rgba(0,0,0,0)', Clouds:'rgba(60,65,80,.28)', Rain:'rgba(15,20,35,.4)',
+    Drizzle:'rgba(20,25,40,.3)', Thunderstorm:'rgba(8,8,18,.5)', Snow:'rgba(190,205,230,.2)',
+    Mist:'rgba(180,180,190,.35)', Haze:'rgba(180,170,150,.3)', Fog:'rgba(180,180,190,.4)', Smoke:'rgba(150,145,140,.35)'
+  };
+
+  /* ============ SKY CROSSFADE ============ */
+  let skyToggle=false, lastPeriod=null, lastWeather=null;
+  function setSky(period){
+    const grad = skyGradients[period] || skyGradients.afternoon;
+    const toEl = document.getElementById(skyToggle?'skyA':'skyB');
+    const fromEl = document.getElementById(skyToggle?'skyB':'skyA');
+    toEl.style.background = grad;
+    toEl.style.opacity = 1;
+    fromEl.style.opacity = 0;
+    skyToggle = !skyToggle;
+  }
+
+  /* ============ STARS ============ */
+  (function initStars(){
+    const c = document.getElementById('stars');
+    for(let i=0;i<70;i++){
+      const s=document.createElement('div');
+      s.className='star';
+      s.style.left=Math.random()*100+'%';
+      s.style.top=Math.random()*70+'%';
+      s.style.animationDelay=(Math.random()*3)+'s';
+      s.style.animationDuration=(2+Math.random()*3)+'s';
+      c.appendChild(s);
+    }
+  })();
+  function setStarsVisible(period){
+    document.getElementById('stars').style.opacity = (period==='night'||period==='dawn') ? 1 : 0;
+    document.getElementById('stars').style.transition='opacity 2s ease';
+  }
+
+  /* ============ CELESTIAL (sun/moon arc) ============ */
+  function updateCelestial(now, period){
+    const h = now.getHours()+now.getMinutes()/60;
+    const el = document.getElementById('celestial');
+    let isDay = (h>=6 && h<18);
+    let progress = isDay ? (h-6)/12 : (h<6 ? (h+6)/12 : (h-18)/12);
+    progress = Math.max(0,Math.min(1,progress));
+    const x = 8 + progress*84;
+    const y = 68 - Math.sin(progress*Math.PI)*54;
+    el.style.left = x+'vw';
+    el.style.top = y+'vh';
+    if(isDay){
+      const warm = (period==='morning'||period==='evening');
+      el.style.background = warm
+        ? 'radial-gradient(circle,#fff3c4 0%,#ffd27a 45%,rgba(255,180,90,0) 75%)'
+        : 'radial-gradient(circle,#fffef2 0%,#ffe9a0 45%,rgba(255,220,120,0) 75%)';
+      el.style.boxShadow = '0 0 60px 20px rgba(255,210,120,.5)';
+    } else {
+      el.style.background = 'radial-gradient(circle at 35% 35%,#f3f3ff 0%,#cfd4f0 55%,rgba(180,190,230,0) 78%)';
+      el.style.boxShadow = '0 0 40px 12px rgba(200,210,255,.35)';
+    }
+  }
+
+  /* ============ CLOUDS ============ */
+  function regenClouds(period, weather){
+    const container = document.getElementById('clouds');
+    container.innerHTML='';
+    const dark = (weather==='Rain'||weather==='Thunderstorm');
+    const overcast = dark || weather==='Clouds' || weather==='Mist' || weather==='Haze' || weather==='Fog' || weather==='Smoke' || weather==='Snow';
+    let count = overcast ? 8 : (period==='night' ? 2 : 4);
+    const colorBase = dark ? '150,155,168' : overcast ? '212,215,224' : '255,255,255';
+    const opacity = dark ? .55 : overcast ? .78 : .85;
+    for(let i=0;i<count;i++){
+      const el=document.createElement('div');
+      el.className='cloud';
+      const w=90+Math.random()*150, h=w*0.36;
+      el.style.width=w+'px'; el.style.height=h+'px';
+      el.style.top=(4+Math.random()*40)+'%';
+      el.style.left=(-20+Math.random()*120)+'%';
+      el.style.background=`rgba(${colorBase},${opacity})`;
+      let shadow=[];
+      const blobs=3+Math.floor(Math.random()*2);
+      for(let b=0;b<blobs;b++){
+        const bx=(Math.random()*w*0.6-w*0.3).toFixed(0);
+        const by=(Math.random()*h*0.3-h*0.15).toFixed(0);
+        const bs=(h*0.3+Math.random()*h*0.3).toFixed(0);
+        shadow.push(`${bx}px ${by}px 0 -${bs}px rgba(${colorBase},${opacity})`);
+      }
+      el.style.boxShadow=shadow.join(',');
+      el.style.filter='blur(1px)';
+      const dur=40+Math.random()*50;
+      el.style.animation=`floatCloud ${dur}s linear infinite`;
+      el.style.animationDelay=(-Math.random()*dur)+'s';
+      container.appendChild(el);
+    }
+  }
+
+  /* ============ CITY SKYLINE (built once) ============ */
+  (function initCity(){
+    const c=document.getElementById('city');
+    const n=16;
+    for(let i=0;i<n;i++){
+      const b=document.createElement('div');
+      b.className='building';
+      const w=100/n;
+      const h=30+Math.random()*70;
+      b.style.left=(i*w)+'%';
+      b.style.width=(w*0.82)+'%';
+      b.style.height=h+'%';
+      c.appendChild(b);
+      const winCols=2+Math.floor(Math.random()*2);
+      const winRows=2+Math.floor(Math.random()*3);
+      for(let r=0;r<winRows;r++){
+        for(let cc=0;cc<winCols;cc++){
+          const wdiv=document.createElement('div');
+          wdiv.className='winlight';
+          wdiv.style.left=(10+cc*(80/winCols))+'%';
+          wdiv.style.top=(8+r*(80/winRows))+'%';
+          wdiv.style.setProperty('--lit', Math.random()<0.55 ? (0.6+Math.random()*0.35).toFixed(2) : 0);
+          b.appendChild(wdiv);
+        }
+      }
+    }
+  })();
+
+  /* ============ FIREFLIES ============ */
+  (function initFireflies(){
+    const c=document.getElementById('fireflies');
+    for(let i=0;i<14;i++){
+      const f=document.createElement('div');
+      f.className='firefly';
+      f.style.left=Math.random()*100+'%';
+      f.style.top=(38+Math.random()*45)+'%';
+      f.style.animationDuration=(4+Math.random()*4)+'s';
+      f.style.animationDelay=(Math.random()*5)+'s';
+      c.appendChild(f);
+    }
+  })();
+
+  /* ============ WEATHER PARTICLES (canvas) ============ */
+  const canvas=document.getElementById('weatherCanvas');
+  const ctx=canvas.getContext('2d');
+  function resizeCanvas(){ canvas.width=innerWidth; canvas.height=innerHeight; }
+  resizeCanvas();
+  window.addEventListener('resize', resizeCanvas);
+  let particles=[];
+  let particleType='Clear';
+  function initParticles(type){
+    particleType = (type==='Drizzle') ? 'Rain' : type;
+    particles=[];
+    if(particleType==='Rain' || particleType==='Thunderstorm'){
+      const count = particleType==='Thunderstorm' ? 220 : 150;
+      for(let i=0;i<count;i++){
+        particles.push({x:Math.random()*canvas.width,y:Math.random()*canvas.height,len:10+Math.random()*18,speed:6+Math.random()*6,wind:1.1+Math.random()*.6,opacity:.2+Math.random()*.35});
+      }
+    } else if(particleType==='Snow'){
+      for(let i=0;i<110;i++){
+        particles.push({x:Math.random()*canvas.width,y:Math.random()*canvas.height,r:1+Math.random()*2.6,speed:.6+Math.random()*1.2,drift:Math.random()*1,phase:Math.random()*Math.PI*2,opacity:.4+Math.random()*.5});
+      }
+    }
+  }
+  function drawParticles(){
+    ctx.clearRect(0,0,canvas.width,canvas.height);
+    if(particleType==='Rain'||particleType==='Thunderstorm'){
+      ctx.strokeStyle='rgba(210,225,255,0.55)';
+      ctx.lineWidth=1.2;
+      particles.forEach(p=>{
+        ctx.globalAlpha=p.opacity;
+        ctx.beginPath();
+        ctx.moveTo(p.x,p.y);
+        ctx.lineTo(p.x+p.wind*3,p.y+p.len);
+        ctx.stroke();
+        p.x+=p.wind; p.y+=p.speed;
+        if(p.y>canvas.height){p.y=-20;p.x=Math.random()*canvas.width;}
+        if(p.x>canvas.width){p.x=0;}
+      });
+      ctx.globalAlpha=1;
+    } else if(particleType==='Snow'){
+      ctx.fillStyle='rgba(255,255,255,0.9)';
+      particles.forEach(p=>{
+        ctx.globalAlpha=p.opacity;
+        ctx.beginPath();
+        ctx.arc(p.x,p.y,p.r,0,Math.PI*2);
+        ctx.fill();
+        p.phase+=0.02;
+        p.x+=Math.sin(p.phase)*p.drift;
+        p.y+=p.speed;
+        if(p.y>canvas.height){p.y=-10;p.x=Math.random()*canvas.width;}
+      });
+      ctx.globalAlpha=1;
+    }
+    requestAnimationFrame(drawParticles);
+  }
+  drawParticles();
+
+  /* Thunder flash */
+  let thunderTimer=null;
+  function manageThunder(active){
+    if(thunderTimer){ clearTimeout(thunderTimer); thunderTimer=null; }
+    if(active) scheduleFlash();
+    else document.getElementById('flashLayer').classList.remove('on');
+  }
+  function scheduleFlash(){
+    const wait = 3000+Math.random()*7000;
+    thunderTimer = setTimeout(()=>{
+      const layer=document.getElementById('flashLayer');
+      layer.classList.add('on');
+      setTimeout(()=>layer.classList.remove('on'), 90);
+      if(Math.random()<0.4){ setTimeout(()=>{layer.classList.add('on'); setTimeout(()=>layer.classList.remove('on'),60);},180); }
+      scheduleFlash();
+    }, wait);
+  }
+
+  /* ============ SCENE ORCHESTRATION ============ */
+  function applyScene(period, weather){
+    const app=document.getElementById('app');
+    app.dataset.period=period;
+    app.dataset.weather=weather;
+
+    if(period!==lastPeriod){
+      setSky(period);
+      setStarsVisible(period);
+      const col = periodColors[period];
+      document.documentElement.style.setProperty('--mtn-color', col.mtn);
+      document.documentElement.style.setProperty('--city-color', col.city);
+      lastPeriod=period;
+    }
+
+    document.getElementById('weatherOverlay').style.background = weatherOverlayColor[weather] || weatherOverlayColor.Clear;
+    const filt = (weather==='Rain'||weather==='Thunderstorm') ? 'saturate(.75) brightness(.82)'
+      : weather==='Snow' ? 'saturate(.85) brightness(1.03)'
+      : (weather==='Clouds'||weather==='Mist'||weather==='Haze'||weather==='Fog'||weather==='Smoke') ? 'saturate(.85) brightness(.93)'
+      : 'saturate(1) brightness(1)';
+    document.querySelector('.scene').style.filter = filt;
+
+    if(weather!==lastWeather || period!==lastAppliedPeriodForClouds){
+      initParticles(weather);
+      regenClouds(period, weather);
+      manageThunder(weather==='Thunderstorm');
+      lastWeather=weather;
+      lastAppliedPeriodForClouds=period;
+    }
+
+    document.getElementById('periodLabel').textContent = periodNames[period];
+  }
+  let lastAppliedPeriodForClouds=null;
+
+  function updateWeatherChip(){
+    const icon = weatherIcon[currentWeather]||'🌤';
+    const label = weatherLabel[currentWeather]||'날씨 정보 없음';
+    const chip=document.getElementById('weatherChip');
+    if(currentTemp!==null){
+      chip.innerHTML = `${icon} ${currentTemp}°C<br><small>${currentCityName?currentCityName+' · ':''}${label}</small>`;
+    } else {
+      chip.innerHTML = `${icon}<br><small>${label} (수동 설정)</small>`;
+    }
+  }
+
+  function tick(){
+    const now=new Date();
+    document.getElementById('clock').textContent = now.toLocaleTimeString('ko-KR',{hour:'2-digit',minute:'2-digit'});
+    document.getElementById('dateLabel').textContent = now.toLocaleDateString('ko-KR',{month:'long',day:'numeric',weekday:'long'});
+    const hourFrac = now.getHours()+now.getMinutes()/60;
+    const period = manualPeriod==='auto' ? getPeriod(hourFrac) : manualPeriod;
+    applyScene(period, currentWeather);
+    updateCelestial(now, period);
+    updateWeatherChip();
+  }
+  tick();
+  setInterval(tick, 20000);
+
+  /* ============ SETTINGS / WEATHER API ============ */
+  const settingsBtn=document.getElementById('settingsBtn');
+  const settingsPop=document.getElementById('settingsPop');
+  settingsBtn.addEventListener('click', (e)=>{ e.stopPropagation(); settingsPop.classList.toggle('open'); });
+  document.addEventListener('click', (e)=>{
+    if(settingsPop.classList.contains('open') && !settingsPop.contains(e.target) && e.target!==settingsBtn){
+      settingsPop.classList.remove('open');
+    }
+  });
+
+  const apiKeyInput=document.getElementById('apiKeyInput');
+  const cityInput=document.getElementById('cityInput');
+  apiKeyInput.value = localStorage.getItem('owm_key')||'';
+  cityInput.value = localStorage.getItem('owm_city')||'';
+  apiKeyInput.addEventListener('change', ()=>localStorage.setItem('owm_key', apiKeyInput.value.trim()));
+
+  async function fetchWeatherByCity(city){
+    const key = localStorage.getItem('owm_key');
+    if(!key){ alert('먼저 OpenWeatherMap API 키를 입력해주세요.\\n키 없이도 아래 "빠른 날씨" 버튼으로 분위기를 즐길 수 있어요.'); return; }
+    if(!city){ alert('도시 이름을 입력해주세요.'); return; }
+    try{
+      const res = await fetch(`https://api.openweathermap.org/data/2.5/weather?q=${encodeURIComponent(city)}&appid=${encodeURIComponent(key)}&units=metric&lang=kr`);
+      if(!res.ok) throw new Error('bad response');
+      const data = await res.json();
+      currentWeather = data.weather && data.weather[0] ? data.weather[0].main : 'Clear';
+      currentTemp = Math.round(data.main.temp);
+      currentCityName = data.name || city;
+      localStorage.setItem('owm_city', city);
+      tick();
+    }catch(err){
+      alert('날씨 정보를 가져오지 못했어요. API 키와 도시 이름을 확인해주세요.');
+    }
+  }
+  async function fetchWeatherByCoords(lat, lon){
+    const key = localStorage.getItem('owm_key');
+    if(!key){ alert('먼저 OpenWeatherMap API 키를 입력해주세요.'); return; }
+    try{
+      const res = await fetch(`https://api.openweathermap.org/data/2.5/weather?lat=${lat}&lon=${lon}&appid=${encodeURIComponent(key)}&units=metric&lang=kr`);
+      if(!res.ok) throw new Error('bad response');
+      const data = await res.json();
+      currentWeather = data.weather && data.weather[0] ? data.weather[0].main : 'Clear';
+      currentTemp = Math.round(data.main.temp);
+      currentCityName = data.name || '내 위치';
+      tick();
+    }catch(err){
+      alert('날씨 정보를 가져오지 못했어요.');
+    }
+  }
+  document.getElementById('citySearchBtn').addEventListener('click', ()=>fetchWeatherByCity(cityInput.value.trim()));
+  cityInput.addEventListener('keydown', e=>{ if(e.key==='Enter') fetchWeatherByCity(cityInput.value.trim()); });
+  document.getElementById('geoBtn').addEventListener('click', ()=>{
+    if(!navigator.geolocation){ alert('이 브라우저는 위치 정보를 지원하지 않아요.'); return; }
+    navigator.geolocation.getCurrentPosition(
+      pos=>fetchWeatherByCoords(pos.coords.latitude, pos.coords.longitude),
+      ()=>alert('위치 정보를 가져오지 못했어요.')
+    );
+  });
+
+  document.querySelectorAll('#quickWeather button').forEach(btn=>{
+    btn.addEventListener('click', ()=>{
+      currentWeather = btn.dataset.w;
+      currentTemp = null;
+      currentCityName = null;
+      document.querySelectorAll('#quickWeather button').forEach(b=>b.classList.remove('active'));
+      btn.classList.add('active');
+      tick();
+    });
+  });
+  document.querySelectorAll('#quickPeriod button').forEach(btn=>{
+    btn.addEventListener('click', ()=>{
+      manualPeriod = btn.dataset.p;
+      document.querySelectorAll('#quickPeriod button').forEach(b=>b.classList.remove('active'));
+      btn.classList.add('active');
+      tick();
+    });
+  });
+  document.querySelector('#quickPeriod button[data-p="auto"]').classList.add('active');
+
+  /* auto-load weather on start if key+city already saved */
+  if(localStorage.getItem('owm_key') && localStorage.getItem('owm_city')){
+    fetchWeatherByCity(localStorage.getItem('owm_city'));
+  }
+
+  /* ============ PANEL TOGGLES ============ */
+  const guestbookBtn=document.getElementById('guestbookBtn');
+  const guestbookPanel=document.getElementById('guestbookPanel');
+  guestbookBtn.addEventListener('click', ()=>{
+    guestbookPanel.classList.toggle('open');
+    document.getElementById('mixerDock').classList.remove('open');
+  });
+
+  const mixerBtn=document.getElementById('mixerBtn');
+  const mixerDock=document.getElementById('mixerDock');
+  mixerBtn.addEventListener('click', ()=>{
+    mixerDock.classList.toggle('open');
+    guestbookPanel.classList.remove('open');
+  });
+
+  /* ============ GUESTBOOK ============ */
+  const GB_KEY='windowDiaryGuestbook';
+  function escapeHtml(s){ return s.replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+  function loadGuestbook(){
+    let data=[];
+    try{ data = JSON.parse(localStorage.getItem(GB_KEY)||'[]'); }catch(e){ data=[]; }
+    const list=document.getElementById('gbList');
+    list.innerHTML='';
+    if(data.length===0){
+      list.innerHTML='<div class="gb-empty">아직 방명록이 비어있어요.<br>첫 글을 남겨보세요 🌙</div>';
+      return;
+    }
+    data.slice().reverse().forEach((entry, revIdx)=>{
+      const idx=data.length-1-revIdx;
+      const div=document.createElement('div');
+      div.className='gb-entry';
+      div.innerHTML = `<div class="gb-head"><span class="gb-name">${escapeHtml(entry.name||'익명')}</span><span>${entry.date}</span></div><p>${escapeHtml(entry.msg)}</p><button class="gb-del" data-idx="${idx}" title="삭제">×</button>`;
+      list.appendChild(div);
+    });
+    list.querySelectorAll('.gb-del').forEach(btn=>{
+      btn.addEventListener('click', e=>{
+        const i=+e.currentTarget.dataset.idx;
+        let d=[];
+        try{ d=JSON.parse(localStorage.getItem(GB_KEY)||'[]'); }catch(err){ d=[]; }
+        d.splice(i,1);
+        localStorage.setItem(GB_KEY, JSON.stringify(d));
+        loadGuestbook();
+      });
+    });
+  }
+  document.getElementById('gbSubmit').addEventListener('click', ()=>{
+    const nameEl=document.getElementById('gbName');
+    const msgEl=document.getElementById('gbMsg');
+    const name=nameEl.value.trim();
+    const msg=msgEl.value.trim();
+    if(!msg) return;
+    let data=[];
+    try{ data=JSON.parse(localStorage.getItem(GB_KEY)||'[]'); }catch(e){ data=[]; }
+    data.push({name, msg, date:new Date().toLocaleDateString('ko-KR',{month:'2-digit',day:'2-digit'})});
+    localStorage.setItem(GB_KEY, JSON.stringify(data));
+    msgEl.value='';
+    loadGuestbook();
+  });
+  loadGuestbook();
+
+  /* ============ AUDIO ENGINE (synthesized, no external files) ============ */
+  let actx=null, masterGain=null, buses={}, audioReady=false;
+  let lofiSchedulerId=null, lofiNextTime=0, lofiStep=0, chordIndex=0;
+  const stepDur = 60/76/4; // 76 BPM, 16th notes
+  const kickPattern  = [1,0,0,0, 0,0,1,0, 0,0,0,1, 0,0,0,0];
+  const snarePattern = [0,0,0,0, 1,0,0,0, 0,0,0,0, 1,0,0,0];
+  const hatPattern   = [1,0,1,1, 0,1,1,0, 1,0,1,1, 0,1,1,0];
+  const chordProg = [
+    [293.66,349.23,440.00,523.25],
+    [220.00,261.63,329.63,392.00],
+    [246.94,293.66,369.99,440.00],
+    [261.63,329.63,392.00,493.88]
+  ];
+
+  function makeNoiseBuffer(seconds, type){
+    const len = Math.max(1, Math.floor(actx.sampleRate*seconds));
+    const buffer = actx.createBuffer(1, len, actx.sampleRate);
+    const data = buffer.getChannelData(0);
+    if(type==='brown'){
+      let last=0;
+      for(let i=0;i<len;i++){
+        const white=Math.random()*2-1;
+        data[i]=(last+0.02*white)/1.02;
+        last=data[i];
+        data[i]*=3.5;
+      }
+    } else {
+      for(let i=0;i<len;i++) data[i]=Math.random()*2-1;
+    }
+    return buffer;
+  }
+
+  function createBus(key){
+    const g=actx.createGain();
+    g.gain.value=0;
+    g.connect(masterGain);
+    buses[key]=g;
+  }
+
+  function startLoopNoise(targetBus, type, filterType, freq, q, level){
+    const src=actx.createBufferSource();
+    src.buffer=makeNoiseBuffer(4, type);
+    src.loop=true;
+    const filter=actx.createBiquadFilter();
+    filter.type=filterType; filter.frequency.value=freq; filter.Q.value=q||0.7;
+    const g=actx.createGain();
+    g.gain.value=level!==undefined?level:1;
+    src.connect(filter).connect(g).connect(targetBus);
+    src.start();
+  }
+
+  function playKick(time){
+    const osc=actx.createOscillator();
+    osc.type='sine';
+    osc.frequency.setValueAtTime(130,time);
+    osc.frequency.exponentialRampToValueAtTime(45,time+0.12);
+    const g=actx.createGain();
+    g.gain.setValueAtTime(0.9,time);
+    g.gain.exponentialRampToValueAtTime(0.001,time+0.28);
+    osc.connect(g).connect(buses.lofi);
+    osc.start(time); osc.stop(time+0.3);
+  }
+  function playSnare(time){
+    const src=actx.createBufferSource();
+    src.buffer=makeNoiseBuffer(0.2,'white');
+    const bp=actx.createBiquadFilter();
+    bp.type='bandpass'; bp.frequency.value=1800; bp.Q.value=0.8;
+    const g=actx.createGain();
+    g.gain.setValueAtTime(0.45,time);
+    g.gain.exponentialRampToValueAtTime(0.001,time+0.15);
+    src.connect(bp).connect(g).connect(buses.lofi);
+    src.start(time); src.stop(time+0.2);
+  }
+  function playHat(time, open){
+    const src=actx.createBufferSource();
+    src.buffer=makeNoiseBuffer(open?0.25:0.05,'white');
+    const hp=actx.createBiquadFilter();
+    hp.type='highpass'; hp.frequency.value=7000;
+    const g=actx.createGain();
+    g.gain.setValueAtTime(open?0.18:0.24,time);
+    g.gain.exponentialRampToValueAtTime(0.001,time+(open?0.22:0.045));
+    src.connect(hp).connect(g).connect(buses.lofi);
+    src.start(time); src.stop(time+(open?0.3:0.06));
+  }
+  function playChordPad(freqs, dur){
+    const now=actx.currentTime+0.01;
+    const g=actx.createGain();
+    g.gain.setValueAtTime(0.0001, now);
+    g.gain.exponentialRampToValueAtTime(0.16, now+0.9);
+    g.gain.exponentialRampToValueAtTime(0.0001, now+dur);
+    const filt=actx.createBiquadFilter();
+    filt.type='lowpass'; filt.frequency.value=1100;
+    g.connect(filt).connect(buses.lofi);
+    freqs.forEach(f=>{
+      [0,-6,6].forEach(detune=>{
+        const osc=actx.createOscillator();
+        osc.type='triangle';
+        osc.frequency.value=f/2;
+        osc.detune.value=detune;
+        osc.connect(g);
+        osc.start(now); osc.stop(now+dur+0.1);
+      });
+    });
+  }
+  function startVinylCrackle(){
+    const src=actx.createBufferSource();
+    src.buffer=makeNoiseBuffer(6,'white');
+    src.loop=true;
+    const hp=actx.createBiquadFilter(); hp.type='highpass'; hp.frequency.value=4200;
+    const g=actx.createGain(); g.gain.value=0.045;
+    src.connect(hp).connect(g).connect(buses.lofi);
+    src.start();
+  }
+  function scheduleLofi(){
+    while(lofiNextTime < actx.currentTime + 0.12){
+      const idx = lofiStep % 16;
+      const t = lofiNextTime;
+      if(kickPattern[idx]) playKick(t);
+      if(snarePattern[idx]) playSnare(t);
+      if(hatPattern[idx]) playHat(t, idx===14 && Math.random()<0.4);
+      if(idx===0 && (lofiStep/16)%2===0){
+        playChordPad(chordProg[chordIndex % chordProg.length], stepDur*32*0.95);
+        chordIndex++;
+      }
+      lofiNextTime += stepDur;
+      lofiStep++;
+    }
+    lofiSchedulerId = setTimeout(scheduleLofi, 50);
+  }
+
+  function playClick(time){
+    const src=actx.createBufferSource();
+    src.buffer=makeNoiseBuffer(0.02,'white');
+    const hp=actx.createBiquadFilter();
+    hp.type='highpass'; hp.frequency.value=2500;
+    const g=actx.createGain();
+    g.gain.setValueAtTime(0.85, time);
+    g.gain.exponentialRampToValueAtTime(0.001, time+0.03);
+    src.connect(hp).connect(g).connect(buses.type);
+    src.start(time); src.stop(time+0.05);
+  }
+  function playBell(time){
+    const osc=actx.createOscillator();
+    osc.type='sine'; osc.frequency.value=1500;
+    const g=actx.createGain();
+    g.gain.setValueAtTime(0.0001,time);
+    g.gain.exponentialRampToValueAtTime(0.35,time+0.01);
+    g.gain.exponentialRampToValueAtTime(0.0001,time+0.4);
+    osc.connect(g).connect(buses.type);
+    osc.start(time); osc.stop(time+0.5);
+  }
+  function scheduleTypewriter(){
+    const now=actx.currentTime+0.05;
+    const burstCount=3+Math.floor(Math.random()*6);
+    let t=0;
+    for(let i=0;i<burstCount;i++){
+      playClick(now+t);
+      t += 0.06+Math.random()*0.1;
+    }
+    if(Math.random()<0.3){ playBell(now+t+0.1); t+=0.5; }
+    setTimeout(scheduleTypewriter, (t+0.6+Math.random()*1.6)*1000);
+  }
+
+  function scheduleFireCrackle(){
+    if(buses.fire){
+      const now=actx.currentTime+0.02;
+      const src=actx.createBufferSource();
+      src.buffer=makeNoiseBuffer(0.08,'white');
+      const bp=actx.createBiquadFilter();
+      bp.type='bandpass'; bp.frequency.value=1200+Math.random()*2600; bp.Q.value=2.5;
+      const g=actx.createGain();
+      g.gain.setValueAtTime(0.0001,now);
+      g.gain.linearRampToValueAtTime(0.4+Math.random()*0.5, now+0.005);
+      g.gain.exponentialRampToValueAtTime(0.0001, now+0.06+Math.random()*0.05);
+      src.connect(bp).connect(g).connect(buses.fire);
+      src.start(now); src.stop(now+0.2);
+    }
+    setTimeout(scheduleFireCrackle, 150+Math.random()*500);
+  }
+
+  function ensureAudio(){
+    if(audioReady){ if(actx.state==='suspended') actx.resume(); return; }
+    try{
+      actx = new (window.AudioContext||window.webkitAudioContext)();
+      masterGain = actx.createGain();
+      masterGain.gain.value = 1;
+      masterGain.connect(actx.destination);
+      ['lofi','rain','cafe','fire','type'].forEach(createBus);
+
+      startLoopNoise(buses.rain, 'white', 'bandpass', 1800, 0.6, 0.9);
+      startLoopNoise(buses.cafe, 'brown', 'lowpass', 800, 0.5, 1.0);
+      startLoopNoise(buses.fire, 'brown', 'lowpass', 300, 0.7, 0.5);
+
+      startVinylCrackle();
+      lofiNextTime = actx.currentTime + 0.1;
+      scheduleLofi();
+      scheduleTypewriter();
+      scheduleFireCrackle();
+
+      document.querySelectorAll('.mixer-row').forEach(row=>{
+        const key=row.dataset.src;
+        const slider=row.querySelector('input[type="range"]');
+        if(buses[key]) buses[key].gain.setTargetAtTime(slider.value/100, actx.currentTime, 0.05);
+      });
+      audioReady=true;
+    }catch(err){
+      console.error('Audio init failed', err);
+    }
+  }
+
+  document.querySelectorAll('.mixer-row').forEach(row=>{
+    const key=row.dataset.src;
+    const slider=row.querySelector('input[type="range"]');
+    const val=row.querySelector('.val');
+    slider.addEventListener('input', ()=>{
+      val.textContent=slider.value;
+      if(audioReady && buses[key]) buses[key].gain.setTargetAtTime(slider.value/100, actx.currentTime, 0.05);
+    });
+  });
+
+  let audioPaused=false;
+  document.getElementById('masterToggle').addEventListener('click', function(){
+    if(!audioReady){ ensureAudio(); }
+    if(audioPaused){ actx.resume(); this.textContent='일시정지'; audioPaused=false; }
+    else { actx.suspend(); this.textContent='재생'; audioPaused=true; }
+  });
+
+  /* ============ CURTAIN OPEN ============ */
+  const curtain=document.getElementById('curtain');
+  document.getElementById('openBtn').addEventListener('click', ()=>{
+    ensureAudio();
+    curtain.classList.add('opened');
+    setTimeout(()=>curtain.classList.add('hidden'), 1200);
+  });
+
+})();
+</script>
+</body>
+</html>
